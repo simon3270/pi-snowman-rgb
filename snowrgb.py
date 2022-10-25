@@ -67,11 +67,6 @@ random.seed()
 insync = False
 idlemen = 0
  
-#LEDs = [7,8,9,22,18,17,23,24] # Not nose
- 
-# Set up PWM on nose to control brightness    
-#LED = 25 
- 
 def headTieOn(strip, baseLED, wait_ms=100):   #Eyes, node and tie on
     for x in NOSE:
         strip.setPixelColor(baseLED+x, ORANGE)
@@ -287,7 +282,7 @@ def runRainbows(strip, baseLED):
     rainbow(strip, baseLED)
     rainbowCycle(strip, baseLED)
 
-def all_snowmen_arms(strip, wait_ms=30):
+def all_snowmen_arms(strip, wait_ms=100):
     for snowman in range(args.m):
         baseLED = LED_COUNT*snowman
         for x in ARMS:
@@ -381,18 +376,22 @@ def all_snowmen_run(strip, wait_ms=100):
             baseLED = LED_COUNT*snowman
             allOff(strip, baseLED, wait_ms=0)
 
-        # Start at the first snowman, run lights along right arm then left arm,
-        # then next one, to end, then loop back
-        for n in range(2):
-            all_snowmen_arms(strip)
-        # Same but with a vertical stripe of LEDs
-        for n in range(1):
-            all_snowmen_verticals(strip)
-        # Show a horizontal line across all snowmen at once, and move
-        # the line down and up
-        for n in range(3):
-            all_snowmen_horizontals(strip)
-        time.sleep(1.0)
+        n = random.randint(0,2)
+        if n == 0:
+            # Start at the first snowman, run lights along right arm then left arm,
+            # then next one, to end, then loop back, quickly
+            for l in range(2):
+                all_snowmen_arms(strip, wait_ms=25)
+        if n == 1:
+            # Same but with a vertical stripe of LEDs
+            for l in range(1):
+                all_snowmen_verticals(strip)
+        if n == 2:
+            # Show a horizontal line across all snowmen at once, and move
+            # the line down and up
+            for l in range(3):
+                all_snowmen_horizontals(strip)
+        time.sleep(0.5)
 
 # Set up configuration for on-off times
 
@@ -490,6 +489,7 @@ def run_snowman(snowman,strip):
                 idlemen += 1
                 while insync:
                     time.sleep(0.2)
+                time.sleep(snowman*0.1)
 
 
             # We are not in a synchronised state - show lights (if it's the right time
@@ -578,7 +578,7 @@ if __name__ == '__main__':
     # Process arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--clear', action='store_true', help='clear the display on exit')
-    parser.add_argument('-b', '--brightness', action='store', dest='b', type=int, help='Set the brightness')
+    parser.add_argument('-b', '--brightness', action='store', dest='b', default=LED_BRIGHTNESS, type=int, help='Set the brightness 0-255 default %(default)s')
     #parser.add_argument('-a', '--all', action='store_true', dest='a', help='Run All Demos')
     parser.add_argument('-a', '--action', action='store_true', dest='a', help='Only Run old-style Action demos')
     parser.add_argument('-w', '--wipe', action='store_true', dest='w', help='Only Run Wipe Demos')
@@ -638,7 +638,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
     # Create NeoPixel object with appropriate configuration.
-    strip = PixelStrip(args.m*LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+    strip = PixelStrip(args.m*LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, args.b, LED_CHANNEL)
     # Intialize the library (must be called once before other functions).
     strip.begin()
 

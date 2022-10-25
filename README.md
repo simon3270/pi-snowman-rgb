@@ -15,7 +15,7 @@ The code uses Python3, but this will be installed if you have a recent OS.
     optional arguments:
       -h, --help            show this help message and exit
       -c, --clear           clear the display on exit
-      -b B, --brightness B  Set the brightness
+      -b B, --brightness B  Set the brightness 0-255, default 20
       -a, --action          Only Run old-style Action demos
       -w, --wipe            Only Run Wipe Demos
       -t, --theater         Only Run Theater Chase Demos
