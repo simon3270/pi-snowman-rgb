@@ -61,12 +61,26 @@ NOSE=(9,)
 # 'Snowman' Colors of all 12 LEDS, in order
 LEDCOLORS=(WHITE, WHITE, WHITE, GREEN, GREEN, GREEN, WHITE, WHITE, WHITE, ORANGE, BLUE, BLUE)
 
+# Set default Cheerlights colour to green
+# This means we can use cheerlights colour in amy display,
+# whether or not we are connecting to cheerlights.com
+cheercolour = GREEN
+
 random.seed()
 
 # Global variables so that threads can communicate
 insync = False
 idlemen = 0
  
+#LEDs = [7,8,9,22,18,17,23,24] # Not nose
+ 
+# Set up PWM on nose to control brightness    
+#LED = 25 
+ 
+def datenow():
+    # Return the current date and time as YYYY/MM/DD HH:MMM:SS
+    return datetime.datetime.now().strftime("%F %T")
+
 def headTieOn(strip, baseLED, wait_ms=100):   #Eyes, node and tie on
     for x in NOSE:
         strip.setPixelColor(baseLED+x, ORANGE)
@@ -282,11 +296,12 @@ def runRainbows(strip, baseLED):
     rainbow(strip, baseLED)
     rainbowCycle(strip, baseLED)
 
-def all_snowmen_arms(strip, wait_ms=100):
+def all_snowmen_arms(strip, wait_ms=30):
+    global cheercolour
     for snowman in range(args.m):
         baseLED = LED_COUNT*snowman
         for x in ARMS:
-            strip.setPixelColor(baseLED+x, WHITE)
+            strip.setPixelColor(baseLED+x, cheercolour)
             strip.show()
             time.sleep(wait_ms / 1000.0)
             strip.setPixelColor(baseLED+x, BLACK)
@@ -294,7 +309,7 @@ def all_snowmen_arms(strip, wait_ms=100):
     for snowman in range(args.m-1, -1, -1):
         baseLED = LED_COUNT*snowman
         for x in ARMS2:
-            strip.setPixelColor(baseLED+x, WHITE)
+            strip.setPixelColor(baseLED+x, cheercolour)
             strip.show()
             time.sleep(wait_ms / 1000.0)
             strip.setPixelColor(baseLED+x, BLACK)
@@ -371,43 +386,32 @@ def all_snowmen_horizontals(strip, wait_ms=75):
 # Snowmen in Sync patterns
 def all_snowmen_run(strip, wait_ms=100):
     if lights_on(on_off_times):
+        # Start at the first snowman, run lights along right arm then left arm,
+        # then next one, to end, then loop back
         # First turn all leds off
         for snowman in range(args.m):
             baseLED = LED_COUNT*snowman
             allOff(strip, baseLED, wait_ms=0)
 
-        n = random.randint(0,2)
-        if n == 0:
-            # Start at the first snowman, run lights along right arm then left arm,
-            # then next one, to end, then loop back, quickly
-            for l in range(2):
-                all_snowmen_arms(strip, wait_ms=25)
-        if n == 1:
-            # Same but with a vertical stripe of LEDs
-            for l in range(1):
-                all_snowmen_verticals(strip)
-        if n == 2:
-            # Show a horizontal line across all snowmen at once, and move
-            # the line down and up
-            for l in range(3):
-                all_snowmen_horizontals(strip)
-        time.sleep(0.5)
+        for n in range(2):
+            all_snowmen_arms(strip)
+        for n in range(1):
+            all_snowmen_verticals(strip)
+        for n in range(3):
+            all_snowmen_horizontals(strip)
+        time.sleep(1.0)
 
-# Set up configuration for on-off times
+# Set up configuraiton for on-off times
 
 def read_config():
-    # Read config file, if it exists: TBD!
-
-    # Note that we don't currently support periods spanning midnight - split
-    # them into two periods, to 1 second before midnight, and from midnight.
-
+    # Read config file, if it exists
     # Return start and stop times, in pairs
     # Default is 8am to 10pm
     t0 = 3600*8 + 60*0 + 0
     t1 = 3600*22 + 60*0 + 0
-    # If you want them all day and all night, e.g. for late-nght testing!
-    # t0 = 3600*0 + 60*0 + 0
-    # t1 = 3600*23 + 60*59 + 59
+    # Temporarily all day
+    t0 = 3600*0 + 60*0 + 1
+    t1 = 3600*23 + 60*59 + 59
     return [(t0, t1)]
     # if you want to return mutliple periods, it would look like:
     # return [(t0, t1), (t2, t3)]
@@ -489,7 +493,6 @@ def run_snowman(snowman,strip):
                 idlemen += 1
                 while insync:
                     time.sleep(0.2)
-                time.sleep(snowman*0.1)
 
 
             # We are not in a synchronised state - show lights (if it's the right time
@@ -591,6 +594,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--numdisp', action='store', dest='n', type=int, default=1, help='Number of displays per sleep, default %(default)s')
     parser.add_argument('-m', '--men', action='store', dest='m', type=int, default=1, help='Number of snowmen, default %(default)s')
     parser.add_argument('-p', '--pir', action='store_true', dest='p', help='PIR is present')
+    parser.add_argument('-e', '--cheerlights', action='store_true', dest='e', help='Cheerlights connection via MQTT')
     parser.add_argument('-v', '--verbose', action='store_true', dest='v', help='Verbose logging')
     parser.add_argument('--time', action='store_true', dest='time', help='Just time each display method')
     args = parser.parse_args()
@@ -636,6 +640,58 @@ if __name__ == '__main__':
             # Reset GPIO settings
             GPIO.cleanup()
             sys.exit(0)
+
+    # ==== Set up MQTT connection to cheerlights ====
+    if args.e:
+        import paho.mqtt.client as paho
+
+        # Channels "color", "colour" or "hex"
+        mytopic = "hex"
+
+        def on_message(client, userdata, message):
+            # Called if a message is received - set the color from the message text
+            global state, cheercolour
+            try:
+                cheermsg = message.payload.decode("utf-8")
+                if verbose:
+                    print("Cheercolour = %s" % cheermsg)
+                cheercolour = int(cheermsg[1:], 16)
+                if verbose:
+                    print("Cheercolour = 0x%x" % cheercolour)
+            except:
+                cheercolour = GREEN
+
+            #if verbose:
+            #    print("%s Topic %s, mid %d, Payload: %s" %
+            #          (datenow(), message.topic, message.mid, cheermsg))
+
+
+        def on_connect(client, userdata, flags, rc):
+            # Called if a connection is made
+            global state
+            if verbose:
+                print("%s Connection returned %d: %s" %
+                      (datenow(), rc, paho.connack_string(rc)))
+            state = "connected"
+
+        cheer = paho.Client()
+
+        # Set up the "message" handler
+        cheer.on_message = on_message
+        cheer.on_connect = on_connect
+
+        # Open the connection to the Cherlights server
+        rc = cheer.connect('mqtt.cheerlights.com', 1883, 60)
+        if rc != 0:
+            print("%s Error connecting to server %d: %s" %
+                  (datenow(), rc, paho.connack_string(rc)))
+            sys.exit(1)
+
+        rc, mid = cheer.subscribe(mytopic, 0)
+        if verbose:
+            print("Return code from subscribe to %s = %d" % (mytopic, rc))
+        cheer.loop_start()
+
 
     # Create NeoPixel object with appropriate configuration.
     strip = PixelStrip(args.m*LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, args.b, LED_CHANNEL)
