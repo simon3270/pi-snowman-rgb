@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
 # SnowpiRGB plugged into pins 2, 4, 6, 8, 10, 12 as usual
-# For PIR, 5V wire soldered to back of SnowPiRGB
-#          ground to pin 34
-#          signal to pin 36 (GPIO16)
+# Optional PIR, 5V wire soldered to pins 2 or 4 at back of SnowPiRGB
+#               ground to pin 34
+#               signal to pin 36 (GPIO16)
 # See https://maker.pro/raspberry-pi/tutorial/how-to-interface-a-pir-motion-sensor-with-raspberry-pi-gpio
 
 # Uses PIR on BCM pin 16 (=GPIO16 = pin 36)
@@ -72,11 +72,6 @@ random.seed()
 insync = False
 idlemen = 0
  
-#LEDs = [7,8,9,22,18,17,23,24] # Not nose
- 
-# Set up PWM on nose to control brightness    
-#LED = 25 
- 
 def datenow():
     # Return the current date and time as YYYY/MM/DD HH:MMM:SS
     return datetime.datetime.now().strftime("%F %T")
@@ -91,7 +86,7 @@ def headTieOn(strip, baseLED, wait_ms=100):   #Eyes, node and tie on
         strip.show()
         time.sleep(wait_ms / 1000.0)
     for x in TIE:
-        strip.setPixelColor(baseLED+x, GREEN)
+        strip.setPixelColor(baseLED+x, cheercolour)
         strip.show()
         time.sleep(wait_ms / 1000.0)
     return
@@ -201,7 +196,7 @@ def allOn(strip, baseLED, wait_ms=100):
         strip.show()
         time.sleep(wait_ms / 1000.0)
     for x in TIE:
-        strip.setPixelColor(baseLED+x, GREEN)
+        strip.setPixelColor(baseLED+x, cheercolour)
         strip.show()
         time.sleep(wait_ms / 1000.0)
     for x in NOSE:
@@ -219,7 +214,7 @@ def allOff(strip, baseLED, wait_ms=100):
         strip.show()
         time.sleep(wait_ms / 1000.0)
  
-def colorWipe(strip, baseLED, color, wait_ms=50):
+def colorWipe(strip, baseLED, color, wait_ms=40):
     """Wipe color across display a pixel at a time."""
     for i in range(0, LED_COUNT):
         strip.setPixelColor(baseLED+i, color)
@@ -227,7 +222,7 @@ def colorWipe(strip, baseLED, color, wait_ms=50):
         time.sleep(wait_ms / 1000.0)
 
 
-def theaterChase(strip, baseLED, color, wait_ms=50, iterations=10):
+def theaterChase(strip, baseLED, color, wait_ms=50, iterations=8):
     """Movie theater light style chaser animation."""
     for j in range(iterations):
         for q in range(3):
@@ -285,12 +280,14 @@ def runTheaterChase(strip, baseLED):
     theaterChase(strip, baseLED, Color(127, 127, 127))  # White theater chase
     theaterChase(strip, baseLED, Color(127, 0, 0))  # Red theater chase
     theaterChase(strip, baseLED, Color(0, 0, 127))  # Blue theater chase
+    theaterChase(strip, baseLED, cheercolour)       # Cheerlights theater chase
 
 def runColorWipe(strip, baseLED):
     for n in range(3):
         colorWipe(strip, baseLED, Color(255, 0, 0))  # Red wipe
         colorWipe(strip, baseLED, Color(0, 255, 0))  # Blue wipe
         colorWipe(strip, baseLED, Color(0, 0, 255))  # Green wipe
+        colorWipe(strip, baseLED, cheercolour)       # Cheerlights wipe
 
 def runRainbows(strip, baseLED):
     rainbow(strip, baseLED)
@@ -298,22 +295,42 @@ def runRainbows(strip, baseLED):
 
 def all_snowmen_arms(strip, wait_ms=30):
     global cheercolour
+    # Set up list for the leds to be held on for somecycles
+    hold_leds = []
+    # Max size of that list
+    hold_max = 2 * args.m
     for snowman in range(args.m):
         baseLED = LED_COUNT*snowman
         for x in ARMS:
             strip.setPixelColor(baseLED+x, cheercolour)
+            hold_leds.append(baseLED+x)
             strip.show()
             time.sleep(wait_ms / 1000.0)
-            strip.setPixelColor(baseLED+x, BLACK)
-            strip.show()
+            if len(hold_leds) > hold_max:
+                strip.setPixelColor(hold_leds[0], BLACK)
+                hold_leds = hold_leds[1:]
+                strip.show()
+    while len(hold_leds) > 0:
+        time.sleep(wait_ms / 1000.0)
+        strip.setPixelColor(hold_leds[0], BLACK)
+        hold_leds = hold_leds[1:]
+        strip.show()
     for snowman in range(args.m-1, -1, -1):
         baseLED = LED_COUNT*snowman
         for x in ARMS2:
             strip.setPixelColor(baseLED+x, cheercolour)
+            hold_leds.append(baseLED+x)
             strip.show()
             time.sleep(wait_ms / 1000.0)
-            strip.setPixelColor(baseLED+x, BLACK)
-            strip.show()
+            if len(hold_leds) > hold_max:
+                strip.setPixelColor(hold_leds[0], BLACK)
+                hold_leds = hold_leds[1:]
+                strip.show()
+    while len(hold_leds) > 0:
+        time.sleep(wait_ms / 1000.0)
+        strip.setPixelColor(hold_leds[0], BLACK)
+        hold_leds = hold_leds[1:]
+        strip.show()
 
 def next_color_loop(i):
     i += 1
@@ -322,7 +339,10 @@ def next_color_loop(i):
     return(i, COLOR_LOOP[i])
 
 def show_vertical(strip, baseLED, vcolor, LEDs, wait_ms=75):
-    vcolor, vcolid = next_color_loop(vcolor)
+    if args.e:
+        vcolid = cheercolour
+    else:
+        vcolor, vcolid = next_color_loop(vcolor)
     for x in LEDs:
         strip.setPixelColor(baseLED+x, vcolid)
     strip.show()
@@ -354,7 +374,10 @@ def all_snowmen_horizontals(strip, wait_ms=75):
     # Light horizontal rows across all snowmen at once
     vcolor = 0
     for row in (11, 10), (9,), (2, 5, 8), (1, 4, 7), (0, 3, 6):
-        vcolor, vcolid = next_color_loop(vcolor)
+        if args.e:
+            vcolid = cheercolour
+        else:
+            vcolor, vcolid = next_color_loop(vcolor)
         for snowman in range(args.m):
             baseLED = LED_COUNT*snowman
             for x in row:
@@ -369,7 +392,10 @@ def all_snowmen_horizontals(strip, wait_ms=75):
     time.sleep(wait_ms / 1000.0)
 
     for row in (0, 3, 6), (1, 4, 7), (2, 5, 8), (9,), (11, 10):
-        vcolor, vcolid = next_color_loop(vcolor)
+        if args.e:
+            vcolid = cheercolour
+        else:
+            vcolor, vcolid = next_color_loop(vcolor)
         for snowman in range(args.m):
             baseLED = LED_COUNT*snowman
             for x in row:
@@ -390,8 +416,7 @@ def all_snowmen_run(strip, wait_ms=100):
         # then next one, to end, then loop back
         # First turn all leds off
         for snowman in range(args.m):
-            baseLED = LED_COUNT*snowman
-            allOff(strip, baseLED, wait_ms=0)
+            allOff(strip, LED_COUNT*snowman, wait_ms=0)
 
         for n in range(2):
             all_snowmen_arms(strip)
@@ -404,14 +429,16 @@ def all_snowmen_run(strip, wait_ms=100):
 # Set up configuraiton for on-off times
 
 def read_config():
-    # Read config file, if it exists
     # Return start and stop times, in pairs
-    # Default is 8am to 10pm
-    t0 = 3600*8 + 60*0 + 0
-    t1 = 3600*22 + 60*0 + 0
-    # Temporarily all day
-    t0 = 3600*0 + 60*0 + 1
-    t1 = 3600*23 + 60*59 + 59
+    if args.f:
+        # Force to run all day
+        t0 = 3600*0 + 60*0 + 1
+        t1 = 3600*23 + 60*59 + 59
+    else:
+        # Read config file, when coded!
+        # Default is 8am to 10pm
+        t0 = 3600*8 + 60*0 + 0
+        t1 = 3600*22 + 60*0 + 0
     return [(t0, t1)]
     # if you want to return mutliple periods, it would look like:
     # return [(t0, t1), (t2, t3)]
@@ -460,7 +487,7 @@ def run_snowman(snowman,strip):
     Current_State  = 0
     Previous_State = 0
  
-    # === stop and exit only ===
+    # === stop lights on this snowman and exit ===
     if args.o:
         allOff(strip, baseLED, wait_ms=0)
         return
@@ -486,8 +513,8 @@ def run_snowman(snowman,strip):
 
     try:
         while True:
-         
-            # We are in the Synchronized state - tell main thread that we are ready
+          try: 
+            # If We are in the Synchronized state, tell main thread that we are ready
             # and just loop unti the insync flag is turned off
             if insync:
                 idlemen += 1
@@ -495,7 +522,7 @@ def run_snowman(snowman,strip):
                     time.sleep(0.2)
 
 
-            # We are not in a synchronised state - show lights (if it's the right time
+            # We are not in a synchronised state - show lights (if it's the right time)
             if lights_on(on_off_times):
 
                 # we are in a display time - show lights
@@ -568,6 +595,10 @@ def run_snowman(snowman,strip):
                     Previous_State=0
                     allOff(strip, baseLED)
                     time.sleep(30.0)    
+          except KeyboardInterrupt:
+            if verbose:
+                print("Keyboard interrupt in thread for snowman %d" % snowman)
+            break
 
 
     except KeyboardInterrupt:
@@ -593,6 +624,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--sleep', action='store', dest='s', type=float, default=5.0, help='Seconds between displays, default %(default)s')
     parser.add_argument('-n', '--numdisp', action='store', dest='n', type=int, default=1, help='Number of displays per sleep, default %(default)s')
     parser.add_argument('-m', '--men', action='store', dest='m', type=int, default=1, help='Number of snowmen, default %(default)s')
+    parser.add_argument('-f', '--forever', action='store_true', dest='f', help='Run all day, ignore time limits')
     parser.add_argument('-p', '--pir', action='store_true', dest='p', help='PIR is present')
     parser.add_argument('-e', '--cheerlights', action='store_true', dest='e', help='Cheerlights connection via MQTT')
     parser.add_argument('-v', '--verbose', action='store_true', dest='v', help='Verbose logging')

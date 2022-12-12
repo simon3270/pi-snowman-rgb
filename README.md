@@ -27,7 +27,9 @@ The code uses Python3, but this will be installed if you have a recent OS.
       -s S, --sleep S       Seconds between displays, default 5.0
       -n N, --numdisp N     Number of displays per sleep, default 1
       -m M, --men M         Number of snowmen, default 1
+      -f, --forever         Ignore any time-limits - late-night testing!
       -p, --pir             PIR is present
+      -e, --cheerlights     Display some LEDs in cheerlights.com colour
       -v, --verbose         Verbose logging
       --time                Just time each display method
 
@@ -45,8 +47,8 @@ After a confgurable time (the "-l" option, default 40 seconds), the indvidual
 snowman stop displaying their own patterns, and a co-ordinated pattern runs
 across all of the snowmen (even if there is only one of them!).
 
-When the code stops, it may leave some LEDs lit.
-The "-c" option to avoids this.
+When the code stops, it may leave some LEDs lit. Calling the program with
+the "-c" option may avoid this.
 
 You may need to press Ctrl-C twice to get the code to stop.
 
@@ -54,8 +56,9 @@ If you just give the "--off" option, turn all LEDs off and exit.
 
 ## Display time periods
 
-The system will impose time limits on display (so that it doesn't run all
-night, for example).
+The system will normally impose time limits on display (so that it doesn't
+run all night, for example). The  "-f" option overrides the limites and runs
+all of the time (good for late-night testing).
 
 At the moment the times are in code, so will need an edit to change them.
 
@@ -164,3 +167,12 @@ The final snowman will have wires attached to the DIN side, but nothing
 on the DOUT side.
 
 * Finally, use the "-m" option to specify how many snowmen you have.
+
+## Chherlights connection
+
+The code will display the current global cheerlights colour if you
+use the "-e" option. It sets up an MQTT connection so that changes to the
+colour are displayed immediately (rather than having to poll for the colour).
+
+For details of the #cheerlights phenomenon, see cheerlights.com.
+
