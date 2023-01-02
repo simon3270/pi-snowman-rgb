@@ -478,12 +478,15 @@ def read_config():
         # Force to run all day
         t0 = 3600*0 + 60*0 + 1
         t1 = 3600*23 + 60*59 + 59
+        return [(t0, t1)]
     else:
         # Read config file, when coded!
         # Default is 8am to 10pm
         t0 = 3600*8 + 60*0 + 0
-        t1 = 3600*22 + 60*0 + 0
-    return [(t0, t1)]
+        t1 = 3600*10 + 60*0 + 0
+        t2 = 3600*16 + 60*0 + 0
+        t3 = 3600*23 + 60*0 + 0
+        return [(t0, t1), (t2, t3)]
     # if you want to return mutliple periods, it would look like:
     # return [(t0, t1), (t2, t3)]
 
@@ -523,7 +526,7 @@ def time_snowman(strip):
 def run_snowman(snowman,strip):
     global insync, idlemen
 
-    if verbose:
+    if verbose >= 1:
         print("Snowman %d start" % (snowman))
     # Run nth snowman in chain
     baseLED = snowman * LED_COUNT
@@ -582,7 +585,7 @@ def run_snowman(snowman,strip):
                 if Current_State>=1:
                     # PIR is triggered
                     if Previous_State==0:
-                        if verbose:
+                        if verbose >= 2:
                             print("  Motion detected!")
                         allOn(strip, baseLED)
                         Previous_State=1
@@ -623,7 +626,7 @@ def run_snowman(snowman,strip):
                 elif Current_State==0:
                     if Previous_State==1:
                         # PIR has returned to ready state
-                        if verbose:
+                        if verbose >= 2:
                             print("  Idle")
                         Previous_State=0
                         allOff(strip, baseLED)
@@ -634,13 +637,13 @@ def run_snowman(snowman,strip):
                 # if not on, leve them alone
                 if Previous_State==1:
                     # Lights were on - turn them off
-                    if verbose:
+                    if verbose >= 2:
                         print("  Dark")
                     Previous_State=0
                     allOff(strip, baseLED)
                     time.sleep(30.0)
           except KeyboardInterrupt:
-            if verbose:
+            if verbose >= 1:
                 print("Keyboard interrupt in thread for snowman %d" % snowman)
             break
 
@@ -671,7 +674,7 @@ if __name__ == '__main__':
     parser.add_argument('-f', '--forever', action='store_true', dest='f', help='Run all day, ignore time limits')
     parser.add_argument('-p', '--pir', action='store_true', dest='p', help='PIR is present')
     parser.add_argument('-e', '--cheerlights', action='store_true', dest='e', help='Cheerlights connection via MQTT')
-    parser.add_argument('-v', '--verbose', action='store_true', dest='v', help='Verbose logging')
+    parser.add_argument('-v', '--verbose', action='count',  default=0, dest='v', help='Verbose logging (repeat for more verbose')
     parser.add_argument('--time', action='store_true', dest='time', help='Just time each display method')
     args = parser.parse_args()
 
@@ -684,9 +687,20 @@ if __name__ == '__main__':
     # if none specified, set all
     if not (args.a or args.t or args.r or args.w):
         show_a = show_t = show_r = show_w = True
+    if verbose >= 1:
+        msg = ''
+        if args.p:
+            msg += ', PIR on'
+        if args.e:
+            msg += ', with Cheerlights'
+        if args.f:
+            msg += ', running continuously'
+        print("Starting %d snowmen%s, verbosity %d" % (args.m, msg, verbose))
 
     # get times to turn the display on or off
     on_off_times = read_config()
+    if verbose >= 1:
+        print("On-Off times %s" % repr(on_off_times))
 
     # ==== Set up PIR ====
     if args.p:
@@ -698,7 +712,7 @@ if __name__ == '__main__':
         GPIO.setup(sw,GPIO.IN)
 
         try:
-            if verbose:
+            if verbose >= 1:
                 print("Waiting for PIR to settle ...")
 
             # Loop until PIR output is 0
@@ -708,7 +722,7 @@ if __name__ == '__main__':
                 c += 1
                 time.sleep(0.1)
 
-            if verbose:
+            if verbose >= 1:
                 print("  Ready")
 
         except KeyboardInterrupt:
@@ -720,35 +734,52 @@ if __name__ == '__main__':
     # ==== Set up MQTT connection to cheerlights ====
     if args.e:
         import paho.mqtt.client as paho
+        mqttstate = "disconnected"
 
         # Channels "color", "colour" or "hex"
         mytopic = "hex"
 
+        # Supported Colors:
+        #   red (#FF0000)
+        #   green (#008000)
+        #   blue (#0000FF)
+        #   cyan (#00FFFF)
+        #   white (#FFFFFF)
+        #   oldlace (#FDF5E6)
+        #   purple (#800080)
+        #   magenta (#FF00FF)
+        #   yellow (#FFFF00)
+        #   orange (#FFA500)
+        #   pink (#FFC0CB)
+
         def on_message(client, userdata, message):
             # Called if a message is received - set the color from the message text
-            global state, cheercolour
+            global mqttstate, cheercolour
             try:
                 cheermsg = message.payload.decode("utf-8")
-                if verbose:
+                if verbose >= 1:
                     print("Cheercolour = %s" % cheermsg)
                 cheercolour = int(cheermsg[1:], 16)
-                if verbose:
+                if verbose >= 2:
                     print("Cheercolour = 0x%x" % cheercolour)
             except:
                 cheercolour = GREEN
 
-            #if verbose:
+            #if verbose >= 2:
             #    print("%s Topic %s, mid %d, Payload: %s" %
             #          (datenow(), message.topic, message.mid, cheermsg))
 
 
         def on_connect(client, userdata, flags, rc):
             # Called if a connection is made
-            global state
-            if verbose:
+            global mqttstate
+            if verbose >= 1:
                 print("%s Connection returned %d: %s" %
                       (datenow(), rc, paho.connack_string(rc)))
-            state = "connected"
+            mqttstate = "connected"
+            rc, mid = cheer.subscribe(mytopic, 0)
+            if verbose >= 1:
+                print("Return code from subscribe to %s = %d" % (mytopic, rc))
 
         cheer = paho.Client()
 
@@ -763,9 +794,8 @@ if __name__ == '__main__':
                   (datenow(), rc, paho.connack_string(rc)))
             sys.exit(1)
 
-        rc, mid = cheer.subscribe(mytopic, 0)
-        if verbose:
-            print("Return code from subscribe to %s = %d" % (mytopic, rc))
+        # The on_connect handler subscribes, so that if connection drops
+        # and reconnects, it will subscribe again
         cheer.loop_start()
 
 
@@ -806,12 +836,12 @@ if __name__ == '__main__':
                 time.sleep(1)
                 lcount += 1
             # Wait for all snowmen to go idle
-            if verbose:
+            if verbose >= 2:
                 print("Wait for all snowmen to be idle")
             idlemen = 0
             insync = True
             while idlemen < nummen:
-                if verbose:
+                if verbose >= 2:
                     print("Wait for insync, %d idle of %d" % (idlemen, nummen))
                 if threading.active_count() == 1:
                     break
@@ -819,14 +849,14 @@ if __name__ == '__main__':
 
             # All idle and still running - do some funky stuff
             if threading.active_count() > 1:
-                if verbose:
+                if verbose >= 2:
                     print("All snowmen idle - do centralised display")
                 all_snowmen_run(strip)
 
             # All done - revert to out-of-sync
             idlemen = 0
             insync = False
-            if verbose:
+            if verbose >= 2:
                 print("Out of sync")
 
 
