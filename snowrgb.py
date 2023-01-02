@@ -65,10 +65,14 @@ NOSE=(9,)
 LEDCOLORS=(WHITE, WHITE, WHITE, GREEN, GREEN, GREEN, WHITE, WHITE, WHITE, ORANGE, BLUE, BLUE)
 
 # Set default Cheerlights colour to green
-# This means we can use cheerlights colour in amy display,
+# This means we can use cheerlights colour in any display,
 # whether or not we are connecting to cheerlights.com
 cheercolour = GREEN
 
+# The default configuration file path
+cfgfile = '/home/pi/snowrgb.cfg'
+
+# Randomise things a little, otherwise start pattern is too predicatable
 random.seed()
 
 # Global variables so that threads can communicate
@@ -78,6 +82,20 @@ idlemen = 0
 def datenow():
     # Return the current date and time as YYYY/MM/DD HH:MMM:SS
     return datetime.datetime.now().strftime("%F %T")
+
+def timestring_to_secs(timestring):
+    # Convert a time string to seconds since midnight.
+    # timestring is HH, HH:MM, HH:MM:SS, and any number can be 1 or 2 digits.
+    # If string is malformed, throws ValueError.
+    tvals = timestring.split(':')
+    timesecs = 0
+    if len(tvals) == 1:
+        timesecs = int(tvals[0]) * 3600
+    elif len(tvals) == 2:
+        timesecs = int(tvals[0]) * 3600 + int(tvals[1]) * 60 
+    elif len(tvals) == 3:
+        timesecs = int(tvals[0]) * 3600 + int(tvals[1]) * 60  + int(tvals[2])
+    return timesecs
 
 def hold_leds_add(hold_leds, baseLED, next):
     ''' Add a new tail entry to the list of LEDs turned on,
@@ -473,22 +491,50 @@ def all_snowmen_run(strip, wait_ms=100):
 # Set up configuraiton for on-off times
 
 def read_config():
-    # Return start and stop times, in pairs
+    # Config text file is format:
+    #   p1=08-10:00
+    #   p2=16:00-22:00:00
+    #     etc
+    # Time is HH, HH:MM or HH:MM:SS
+    # The 'px' name is not currently parsed - code assumes that all entries
+    # are time periods, and all are correctly start_time-end_time,
+
     if args.f:
-        # Force to run all day
+        # Force to run all day (ignore any config file)
         t0 = 3600*0 + 60*0 + 1
         t1 = 3600*23 + 60*59 + 59
         return [(t0, t1)]
+
     else:
-        # Read config file, when coded!
-        # Default is 8am to 10pm
+        # Try to read config file. If not present or doesn't work, use default values
+        try:
+            with open(cfgfile, 'r') as f:
+                cfgtext = f.readlines()
+            cfgtext = [x.strip() for x in cfgtext]
+        except:
+            cfgtext = None
+
+        if verbose >= 1:
+            print("Config file %s records %s" % (cfgfile, repr(cfgtext)))
+        if cfgtext:
+            try:
+                pers = []
+                for per in cfgtext:
+                    per1 = per.split('=')
+                    per2 = per1[1].split('-')
+                    pers.append((timestring_to_secs(per2[0]),timestring_to_secs(per2[1])))
+                return pers
+            except:
+                # Reading of config file failed
+                pass
+
+        # No valid config file, so return default start and stop times
+        # Default is 8am to 10am and 4pm to 10pm
         t0 = 3600*8 + 60*0 + 0
         t1 = 3600*10 + 60*0 + 0
         t2 = 3600*16 + 60*0 + 0
-        t3 = 3600*23 + 60*0 + 0
+        t3 = 3600*22 + 60*0 + 0
         return [(t0, t1), (t2, t3)]
-    # if you want to return mutliple periods, it would look like:
-    # return [(t0, t1), (t2, t3)]
 
 
 def lights_on(onofftimes):
